@@ -1,6 +1,7 @@
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 const User = require("../models/user.model");
+const Wallet = require("../models/wallet.model");
 
 const otpStore = {};
 
@@ -18,7 +19,6 @@ function generateOtp() {
 
 // Send OTP to email
 exports.sendOtp = async (req, res) => {
-
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: "Email is required." });
 
@@ -80,7 +80,25 @@ exports.register = async (req, res) => {
   const user = new User({ email, password: hashedPassword });
   await user.save();
 
-  return res.status(201).json({ message: "User registered successfully.", user });
+  // Create wallet for the user
+  const wallet = new Wallet({ userId: user._id });
+  await wallet.save();
+
+  // Return user data without password
+  const userResponse = {
+    _id: user._id,
+    email: user.email,
+    role: user.role,
+    walletBalance: user.walletBalance,
+    isBlocked: user.isBlocked,
+    isKYCVerified: user.isKYCVerified,
+    createdAt: user.createdAt,
+  };
+
+  return res.status(201).json({ 
+    message: "User registered successfully.", 
+    user: userResponse 
+  });
 };
 
 exports.login = async (req, res) => {
@@ -93,5 +111,24 @@ exports.login = async (req, res) => {
   if (!isPasswordValid) {
     return res.status(400).json({ message: "Invalid password." });
   }
-  return res.status(200).json({ message: "Login successful.", user });
+
+  // Update last login
+  user.lastLogin = new Date();
+  await user.save();
+
+  // Return user data without password
+  const userResponse = {
+    _id: user._id,
+    email: user.email,
+    role: user.role,
+    walletBalance: user.walletBalance,
+    isBlocked: user.isBlocked,
+    isKYCVerified: user.isKYCVerified,
+    lastLogin: user.lastLogin,
+  };
+
+  return res.status(200).json({ 
+    message: "Login successful.", 
+    user: userResponse 
+  });
 };
