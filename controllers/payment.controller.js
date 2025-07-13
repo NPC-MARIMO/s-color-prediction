@@ -1,6 +1,5 @@
 const razorpay = require("../config/razorpay.config");
 const User = require("../models/user.model");
-const Wallet = require("../models/wallet.model");
 const Transaction = require("../models/transaction.model");
 const { verifyRazorpaySignature, verifyWebhookSignature } = require("../utils/verifySignature");
 
@@ -105,22 +104,11 @@ exports.verifyDepositPayment = async (req, res) => {
     await transaction.save();
 
     // Update user wallet
-    const wallet = await Wallet.findOne({ userId });
-    if (wallet) {
-      wallet.balance += amount;
-      wallet.totalDeposited += amount;
-      wallet.lastTransactionAt = new Date();
-      await wallet.save();
-
-      // Update transaction with final balance
-      transaction.balanceAfter = wallet.balance;
-      await transaction.save();
+    const user = await User.findById(userId);
+    if (user) {
+      user.walletBalance += amount;
+      await user.save();
     }
-
-    // Update user model
-    await User.findByIdAndUpdate(userId, {
-      $inc: { walletBalance: amount, totalDeposited: amount },
-    });
 
     return res.status(200).json({
       message: "Payment verified successfully",
@@ -147,8 +135,8 @@ exports.createWithdrawalRequest = async (req, res) => {
     }
 
     // Check user wallet balance
-    const wallet = await Wallet.findOne({ userId });
-    if (!wallet || wallet.balance < amount) {
+    const user = await User.findById(userId);
+    if (!user || user.walletBalance < amount) {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
@@ -158,8 +146,8 @@ exports.createWithdrawalRequest = async (req, res) => {
       type: "withdrawal",
       amount: -amount,
       netAmount: -amount,
-      balanceBefore: wallet.balance,
-      balanceAfter: wallet.balance - amount,
+      balanceBefore: user.walletBalance,
+      balanceAfter: user.walletBalance - amount,
       description: `Withdrawal request for ${amount}`,
       status: "pending",
       metadata: {
@@ -170,16 +158,8 @@ exports.createWithdrawalRequest = async (req, res) => {
     await transaction.save();
 
     // Update wallet balance
-    wallet.balance -= amount;
-    wallet.totalWithdrawn += amount;
-    wallet.lastTransactionAt = new Date();
-    await wallet.save();
-
-    // Update user model
-    await User.findByIdAndUpdate(userId, {
-      $inc: { walletBalance: -amount, totalWithdrawn: amount },
-      bankDetails: bankDetails,
-    });
+    user.walletBalance -= amount;
+    await user.save();
 
     return res.status(201).json({
       message: "Withdrawal request created successfully",
@@ -269,22 +249,11 @@ exports.handleWebhook = async (req, res) => {
         await transaction.save();
 
         // Update user wallet
-        const wallet = await Wallet.findOne({ userId: transaction.userId });
-        if (wallet) {
-          wallet.balance += amount;
-          wallet.totalDeposited += amount;
-          wallet.lastTransactionAt = new Date();
-          await wallet.save();
-
-          // Update transaction with final balance
-          transaction.balanceAfter = wallet.balance;
-          await transaction.save();
+        const user = await User.findById(transaction.userId);
+        if (user) {
+          user.walletBalance += amount;
+          await user.save();
         }
-
-        // Update user model
-        await User.findByIdAndUpdate(transaction.userId, {
-          $inc: { walletBalance: amount, totalDeposited: amount },
-        });
       }
     }
 

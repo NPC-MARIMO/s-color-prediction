@@ -1,28 +1,18 @@
-const Wallet = require("../models/wallet.model");
 const User = require("../models/user.model");
 const Transaction = require("../models/transaction.model");
 
 // Get wallet balance
 exports.getWalletBalance = async (req, res) => {
   try {
-    const { userId } = req.user;
-
-    const wallet = await Wallet.findOne({ userId });
-    if (!wallet) {
-      return res.status(404).json({ message: "Wallet not found" });
+    const { _id } = req.user;
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
-
     return res.status(200).json({
       wallet: {
-        balance: wallet.balance,
-        lockedBalance: wallet.lockedBalance,
-        availableBalance: wallet.availableBalance,
-        totalDeposited: wallet.totalDeposited,
-        totalWithdrawn: wallet.totalWithdrawn,
-        totalWon: wallet.totalWon,
-        totalLost: wallet.totalLost,
-        currency: wallet.currency,
-        lastTransactionAt: wallet.lastTransactionAt,
+        balance: user.walletBalance,
+        // Optionally add other fields if you want
       },
     });
   } catch (error) {
@@ -34,7 +24,7 @@ exports.getWalletBalance = async (req, res) => {
 // Get wallet statistics
 exports.getWalletStats = async (req, res) => {
   try {
-    const { userId } = req.user;
+    const { _id } = req.user;
     const { period = "30" } = req.query; // days
 
     const startDate = new Date();
@@ -43,7 +33,7 @@ exports.getWalletStats = async (req, res) => {
     const stats = await Transaction.aggregate([
       {
         $match: {
-          userId: userId,
+          _id: _id,
           createdAt: { $gte: startDate },
         },
       },
@@ -56,8 +46,7 @@ exports.getWalletStats = async (req, res) => {
       },
     ]);
 
-    const wallet = await Wallet.findOne({ userId });
-    const user = await User.findById(userId);
+    const user = await User.findById(_id);
 
     return res.status(200).json({
       stats: stats.reduce((acc, stat) => {
@@ -68,13 +57,13 @@ exports.getWalletStats = async (req, res) => {
         return acc;
       }, {}),
       wallet: {
-        balance: wallet?.balance || 0,
-        lockedBalance: wallet?.lockedBalance || 0,
-        availableBalance: wallet?.availableBalance || 0,
-        totalDeposited: wallet?.totalDeposited || 0,
-        totalWithdrawn: wallet?.totalWithdrawn || 0,
-        totalWon: wallet?.totalWon || 0,
-        totalLost: wallet?.totalLost || 0,
+        balance: user?.walletBalance || 0,
+        lockedBalance: user?.lockedBalance || 0,
+        availableBalance: user?.availableBalance || 0,
+        totalDeposited: user?.totalDeposited || 0,
+        totalWithdrawn: user?.totalWithdrawn || 0,
+        totalWon: user?.totalWon || 0,
+        totalLost: user?.totalLost || 0,
       },
       user: {
         walletBalance: user?.walletBalance || 0,
@@ -92,10 +81,10 @@ exports.getWalletStats = async (req, res) => {
 // Get recent transactions
 exports.getRecentTransactions = async (req, res) => {
   try {
-    const { userId } = req.user;
+    const { _id } = req.user;
     const { limit = 5 } = req.query;
 
-    const transactions = await Transaction.find({ userId })
+    const transactions = await Transaction.find({ _id })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .select("type amount description createdAt status");
@@ -112,27 +101,35 @@ exports.getRecentTransactions = async (req, res) => {
 // Create wallet for user (admin function)
 exports.createWallet = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { _id } = req.body;
 
-    if (!userId) {
+    if (!_id) {
       return res.status(400).json({ message: "User ID is required" });
     }
 
-    const existingWallet = await Wallet.findOne({ userId });
-    if (existingWallet) {
-      return res.status(400).json({ message: "Wallet already exists for this user" });
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const wallet = new Wallet({ userId });
-    await wallet.save();
+    // The Wallet model is removed, so we directly update the user's walletBalance
+    user.walletBalance = 0; // Initialize wallet balance
+    user.lockedBalance = 0;
+    user.availableBalance = 0;
+    user.totalDeposited = 0;
+    user.totalWithdrawn = 0;
+    user.totalWon = 0;
+    user.totalLost = 0;
+
+    await user.save();
 
     return res.status(201).json({
       message: "Wallet created successfully",
       wallet: {
-        _id: wallet._id,
-        userId: wallet.userId,
-        balance: wallet.balance,
-        currency: wallet.currency,
+        _id: user._id,
+        _id: user.id,
+        balance: user.walletBalance,
+        currency: "USD", // Assuming a default currency
       },
     });
   } catch (error) {

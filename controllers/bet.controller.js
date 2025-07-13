@@ -1,6 +1,97 @@
+const mongoose = require("mongoose");
 const Bet = require("../models/bet.model");
 const GameRound = require("../models/gameRound.model");
 const User = require("../models/user.model");
+
+// Place a bet on the current round
+exports.placeBetOnCurrentRound = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    console.log(_id);
+    
+    const { chosenColor, amount } = req.body;
+    if (!chosenColor || !["red", "green", "blue"].includes(chosenColor)) {
+      return res.status(400).json({ message: "Invalid color choice" });
+    }
+    if (!amount || amount < 1) {
+      return res.status(400).json({ message: "Invalid bet amount" });
+    }
+    // Find current round
+    const round = await GameRound.findOne({ status: "betting" }).sort({ startTime: -1 });
+    if (!round) {
+      return res.status(400).json({ message: "No active round for betting" });
+    }
+    
+    // Verify the round still exists and is valid
+    if (!round._id) {
+      return res.status(400).json({ message: "Invalid round" });
+    }
+    // Check if user already placed a bet for this round
+    const existingBet = await Bet.findOne({ userId: _id, gameRoundId: round._id });
+    if (existingBet) {
+      return res.status(400).json({ message: "You have already placed a bet for this round" });
+    }
+    // Check user balance
+    const user = await User.findById(_id);
+    if (!user || user.walletBalance < amount) {
+      return res.status(400).json({ message: "Insufficient balance" });
+    }
+    
+    // Start a transaction to ensure data consistency
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    
+    try {
+      // Verify the round still exists before proceeding
+      const roundExists = await GameRound.findById(round._id).session(session);
+      if (!roundExists) {
+        await session.abortTransaction();
+        return res.status(400).json({ message: "Round no longer exists" });
+      }
+      
+      // Deduct amount from user balance
+      user.walletBalance -= amount;
+      await user.save({ session });
+      
+      // Update round statistics
+      round.totalBets += 1;
+      round.totalPool += amount;
+      await round.save({ session });
+      
+      // Create bet
+      const bet = new Bet({
+        userId: _id,
+        gameRoundId: round._id,
+        chosenColor,
+        amount,
+        status: "confirmed",
+      });
+      await bet.save({ session });
+      
+      // Commit transaction
+      await session.commitTransaction();
+      
+      res.json({ 
+        message: "Bet placed", 
+        bet,
+        roundStats: {
+          totalBets: round.totalBets,
+          totalPool: round.totalPool,
+          totalWinners: round.totalWinners || 0
+        }
+      });
+    } catch (error) {
+      // Rollback transaction on error
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  } catch (error) {
+    console.error("Error placing bet:", error);
+    res.status(500).json({ message: "Failed to place bet" });
+  }
+};
 
 // Get all bets (admin)
 exports.getAllBets = async (req, res) => {
@@ -179,20 +270,11 @@ exports.cancelBet = async (req, res) => {
     await bet.save();
 
     // Refund the amount to user wallet
-    const User = require("../models/user.model");
-    const Wallet = require("../models/wallet.model");
-
-    const wallet = await Wallet.findOne({ userId: bet.userId });
-    if (wallet) {
-      wallet.balance += bet.amount;
-      wallet.lockedBalance -= bet.amount;
-      await wallet.save();
+    const user = await User.findById(bet.userId);
+    if (user) {
+      user.walletBalance += bet.amount;
+      await user.save();
     }
-
-    // Update user model
-    await User.findByIdAndUpdate(bet.userId, {
-      $inc: { walletBalance: bet.amount },
-    });
 
     // Create refund transaction
     const Transaction = require("../models/transaction.model");
@@ -201,8 +283,8 @@ exports.cancelBet = async (req, res) => {
       type: "refund",
       amount: bet.amount,
       netAmount: bet.amount,
-      balanceBefore: wallet.balance - bet.amount,
-      balanceAfter: wallet.balance,
+      balanceBefore: user.walletBalance - bet.amount,
+      balanceAfter: user.walletBalance,
       description: `Bet cancelled - ${reason || "Admin cancellation"}`,
       betId: bet._id,
       gameRoundId: bet.gameRoundId,

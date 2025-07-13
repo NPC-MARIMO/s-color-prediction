@@ -1,6 +1,5 @@
 const Transaction = require("../models/transaction.model");
 const User = require("../models/user.model");
-const Wallet = require("../models/wallet.model");
 
 // Get all transactions (admin)
 exports.getAllTransactions = async (req, res) => {
@@ -198,17 +197,11 @@ exports.refundTransaction = async (req, res) => {
     await refundTransaction.save();
 
     // Update user wallet
-    const wallet = await Wallet.findOne({ userId: transaction.userId });
-    if (wallet) {
-      wallet.balance += Math.abs(transaction.amount);
-      wallet.lastTransactionAt = new Date();
-      await wallet.save();
+    const user = await User.findById(transaction.userId);
+    if (user) {
+      user.walletBalance += Math.abs(transaction.amount);
+      await user.save();
     }
-
-    // Update user model
-    await User.findByIdAndUpdate(transaction.userId, {
-      $inc: { walletBalance: Math.abs(transaction.amount) },
-    });
 
     // Mark original transaction as refunded
     transaction.status = "refunded";

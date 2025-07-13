@@ -1,23 +1,25 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
+// const helmet = require("helmet");
+// const rateLimit = require("express-rate-limit");
 const connectDB = require("./config/db");
-const errorMiddleware = require("./middlewares/error.middleware");
+// const errorMiddleware = require("./middlewares/error.middleware");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
 const gameRoutes = require("./routes/game.routes");
-const paymentRoutes = require("./routes/payment.routes");
 const walletRoutes = require("./routes/wallet.routes");
-const transactionRoutes = require("./routes/transaction.routes");
+// const paymentRoutes = require("./routes/payment.routes");
+// const transactionRoutes = require("./routes/transaction.routes");
 
-// Import socket handlers
+// // Import socket handlers
 const http = require("http");
 const { Server } = require("socket.io");
-const setupSocketHandlers = require("./sockets/sockethandler");
+// const setupSocketHandlers = require("./sockets/sockethandler");
 const setupGameSocketHandlers = require("./sockets/game.socket");
+const GameRound = require('./models/gameRound.model');
+const gameController = require('./controllers/game.controller');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,41 +30,38 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Security middleware
-app.use(helmet());
+// app.use(helmet());
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: "Too many requests from this IP, please try again later.",
-});
-app.use(limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 100, // limit each IP to 100 requests per windowMs
+//   message: "Too many requests from this IP, please try again later.",
+// });
+// app.use(limiter);
 
 // CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true,
-}));
+app.use(cors());
 
 // Body parsing middleware
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true}) );
 
 // Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "OK",
-    message: "Color Prediction Game Server is running",
-    timestamp: new Date().toISOString(),
-  });
-});
+// app.get("/health", (req, res) => {
+//   res.status(200).json({
+//     status: "OK",
+//     message: "Color Prediction Game Server is running",
+//     timestamp: new Date().toISOString(),
+//   });
+// });
 
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/game", gameRoutes);
-app.use("/api/payment", paymentRoutes);
+// app.use("/api/payment", paymentRoutes);
 app.use("/api/wallet", walletRoutes);
-app.use("/api/transaction", transactionRoutes);
+// app.use("/api/transaction", transactionRoutes);
 
 // Socket.IO setup
 const io = new Server(server, {
@@ -73,19 +72,44 @@ const io = new Server(server, {
 });
 
 // Setup socket handlers
-setupSocketHandlers(io);
-setupGameSocketHandlers(io);
+// setupSocketHandlers(io);
+const socketEmitters = setupGameSocketHandlers(io);
+
+// Make socket emitters available globally
+global.socketEmitters = socketEmitters;
+
+// Scheduler: Automatically complete and start new rounds every second
+setInterval(async () => {
+  try {
+    // Find the current round
+    const round = await GameRound.findOne({ status: { $in: ['betting', 'spinning'] } }).sort({ startTime: -1 });
+    const now = new Date();
+    if (round) {
+      if (now > round.endTime && round.status !== 'completed') {
+        // Complete the round if its endTime has passed
+        await gameController.completeCurrentRound({}, { json: () => {}, status: () => ({ json: () => {} }) });
+        // Start a new round immediately after completion
+        await gameController.startNewRound({}, { json: () => {}, status: () => ({ json: () => {} }) });
+      }
+    } else {
+      // No active round, start a new one
+      await gameController.startNewRound({}, { json: () => {}, status: () => ({ json: () => {} }) });
+    }
+  } catch (err) {
+    console.error('Error in round scheduler:', err);
+  }
+}, 1000); // check every 1 second for continuous monitoring
 
 // Error handling middleware (should be last)
-app.use(errorMiddleware);
+// app.use(errorMiddleware);
 
 // 404 handler
-app.use("*", (req, res) => {
-  res.status(404).json({
-    message: "Route not found",
-    path: req.originalUrl,
-  });
-});
+// app.use("*", (req, res) => {
+//   res.status(404).json({
+//     message: "Route not found",
+//     path: req.originalUrl,
+//   });
+// });
 
 // Start server
 server.listen(PORT, () => {
@@ -95,16 +119,16 @@ server.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down gracefully");
-  server.close(() => {
-    console.log("Process terminated");
-  });
-});
+// process.on("SIGTERM", () => {
+//   console.log("SIGTERM received, shutting down gracefully");
+//   server.close(() => {
+//     console.log("Process terminated");
+//   });
+// });
 
-process.on("SIGINT", () => {
-  console.log("SIGINT received, shutting down gracefully");
-  server.close(() => {
-    console.log("Process terminated");
-  });
-});
+// process.on("SIGINT", () => {
+//   console.log("SIGINT received, shutting down gracefully");
+//   server.close(() => {
+//     console.log("Process terminated");
+//   });
+// });

@@ -1,7 +1,6 @@
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 const User = require("../models/user.model");
-const Wallet = require("../models/wallet.model");
 
 const otpStore = {};
 
@@ -52,7 +51,7 @@ exports.verifyOtp = async (req, res) => {
   if (!otpEntry || otpEntry.otp !== otp) {
     return res.status(400).json({ message: "Invalid OTP." });
   }
-  
+
   if (otpEntry.expiresAt < Date.now()) {
     delete otpStore[email];
     return res.status(400).json({ message: "OTP has expired." });
@@ -60,7 +59,9 @@ exports.verifyOtp = async (req, res) => {
 
   delete otpStore[email];
 
-  return res.status(200).json({ message: "OTP verified successfully.", verified: true });
+  return res
+    .status(200)
+    .json({ message: "OTP verified successfully.", verified: true });
 };
 
 exports.register = async (req, res) => {
@@ -80,9 +81,7 @@ exports.register = async (req, res) => {
   const user = new User({ email, password: hashedPassword });
   await user.save();
 
-  // Create wallet for the user
-  const wallet = new Wallet({ userId: user._id });
-  await wallet.save();
+  // No Wallet document creation needed
 
   // Return user data without password
   const userResponse = {
@@ -95,13 +94,14 @@ exports.register = async (req, res) => {
     createdAt: user.createdAt,
   };
 
-  return res.status(201).json({ 
-    message: "User registered successfully.", 
-    user: userResponse 
+  return res.status(201).json({
+    message: "User registered successfully.",
+    user: userResponse,
   });
 };
 
 exports.login = async (req, res) => {
+
   const { email, password } = req.body;
   const user = await User.findOne({ email });
   if (!user) {
@@ -127,8 +127,8 @@ exports.login = async (req, res) => {
     lastLogin: user.lastLogin,
   };
 
-  return res.status(200).json({ 
-    message: "Login successful.", 
-    user: userResponse 
+  return res.status(200).json({
+    message: "Login successful.",
+    user: userResponse,
   });
 };

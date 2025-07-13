@@ -30,12 +30,6 @@ const betSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    razorpayPaymentId: {
-      type: String,
-    },
-    razorpayOrderId: {
-      type: String,
-    },
     status: {
       type: String,
       enum: ["pending", "confirmed", "cancelled", "refunded"],
@@ -58,7 +52,6 @@ const betSchema = new mongoose.Schema(
   }
 );
 
-// Index for better query performance
 betSchema.index({ userId: 1, gameRoundId: 1 });
 betSchema.index({ status: 1 });
 betSchema.index({ createdAt: -1 });

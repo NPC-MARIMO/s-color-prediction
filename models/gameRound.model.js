@@ -18,8 +18,8 @@ const gameRoundSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "active", "completed", "cancelled"],
-      default: "pending",
+      enum: ["betting", "spinning", "completed", "cancelled"],
+      default: "betting",
     },
     colors: {
       type: [String],
@@ -29,55 +29,43 @@ const gameRoundSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-    bets: [
-      {
-        userId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-          required: true,
-        },
-        chosenColor: {
-          type: String,
-          required: true,
-        },
-        amount: {
-          type: Number,
-          required: true,
-        },
-        isWinner: {
-          type: Boolean,
-          default: false,
-        },
-        payoutAmount: {
-          type: Number,
-          default: 0,
-        },
-        razorpayPaymentId: {
-          type: String,
-        },
-        createdAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
     totalPool: {
       type: Number,
       default: 0,
     },
     commission: {
       type: Number,
-      default: 0,
+      default: 0.05, // 5% commission
     },
     resultSeed: {
       type: String,
       default: null,
+    },
+    gameDuration: {
+      type: Number,
+      default: 60, // seconds
+    },
+    bettingDuration: {
+      type: Number,
+      default: 30, // seconds for betting phase
+    },
+    totalBets: {
+      type: Number,
+      default: 0,
+    },
+    totalWinners: {
+      type: Number,
+      default: 0,
     },
   },
   {
     timestamps: true,
   }
 );
+
+// Indexes for better performance
+gameRoundSchema.index({ status: 1, createdAt: -1 });
+gameRoundSchema.index({ roundId: 1 });
 
 const GameRound = mongoose.model("GameRound", gameRoundSchema);
 module.exports = GameRound;
