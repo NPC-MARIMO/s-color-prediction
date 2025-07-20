@@ -10,7 +10,9 @@ const connectDB = require("./config/db");
 const authRoutes = require("./routes/auth.routes");
 const gameRoutes = require("./routes/game.routes");
 const walletRoutes = require("./routes/wallet.routes");
-// const paymentRoutes = require("./routes/payment.routes");
+const userRoutes = require("./routes/user.routes");
+const paymentRoutes = require("./routes/payment.routes");
+const adminRoutes = require("./routes/admin.routes");
 // const transactionRoutes = require("./routes/transaction.routes");
 
 // // Import socket handlers
@@ -59,8 +61,10 @@ app.use(express.urlencoded({ extended: true}) );
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/game", gameRoutes);
-// app.use("/api/payment", paymentRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/payment", paymentRoutes);
 app.use("/api/wallet", walletRoutes);
+app.use("/api/admin", adminRoutes);
 // app.use("/api/transaction", transactionRoutes);
 
 // Socket.IO setup

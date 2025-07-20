@@ -174,7 +174,7 @@ Content-Type: application/json
 
 ### Payment Management
 
-#### Create Deposit Order
+#### Create Deposit Order (Cashfree)
 ```http
 POST /api/payment/create-deposit-order
 User-Id: <user-id>
@@ -185,17 +185,23 @@ Content-Type: application/json
 }
 ```
 
-#### Verify Deposit Payment
+#### Verify Deposit Payment (Cashfree)
 ```http
 POST /api/payment/verify-deposit-payment
 User-Id: <user-id>
 Content-Type: application/json
 
 {
-  "razorpay_order_id": "order_id",
-  "razorpay_payment_id": "payment_id",
-  "razorpay_signature": "signature"
+  "order_id": "order_id",
+  "payment_id": "payment_id"
 }
+```
+
+#### Cashfree Webhook
+```http
+POST /api/payment/webhook
+Content-Type: application/json
+x-cf-signature: <signature>
 ```
 
 #### Create Withdrawal Request
@@ -242,19 +248,126 @@ User-Id: <user-id>
 
 ### Admin Endpoints
 
-#### Get All Transactions (Admin)
+#### User Management (Admin Only)
+
+##### Get All Users
+```http
+GET /api/admin/users?page=1&limit=20&role=user&isBlocked=false&search=email
+User-Id: <admin-user-id>
+```
+
+##### Get User by ID
+```http
+GET /api/admin/users/:userId
+User-Id: <admin-user-id>
+```
+
+##### Block/Unblock User
+```http
+PATCH /api/admin/users/:userId/block
+User-Id: <admin-user-id>
+Content-Type: application/json
+
+{
+  "reason": "Violation of terms"
+}
+```
+
+##### Update User Role
+```http
+PATCH /api/admin/users/:userId/role
+User-Id: <admin-user-id>
+Content-Type: application/json
+
+{
+  "role": "admin"
+}
+```
+
+#### Game Settings (Admin Only)
+
+##### Get Game Settings
+```http
+GET /api/admin/game/settings
+User-Id: <admin-user-id>
+```
+
+##### Update Game Settings
+```http
+PUT /api/admin/game/settings
+User-Id: <admin-user-id>
+Content-Type: application/json
+
+{
+  "gameDuration": 60,
+  "bettingDuration": 30,
+  "commission": 0.05,
+  "minBetAmount": 1,
+  "maxBetAmount": 10000
+}
+```
+
+#### System Statistics (Admin Only)
+
+##### Get System Statistics
+```http
+GET /api/admin/stats/system?period=30
+User-Id: <admin-user-id>
+```
+
+#### Manual Payouts (Admin Only)
+
+##### Get Pending Withdrawals
+```http
+GET /api/admin/withdrawals/pending?page=1&limit=20
+User-Id: <admin-user-id>
+```
+
+##### Approve Withdrawal
+```http
+POST /api/admin/withdrawals/:transactionId/approve
+User-Id: <admin-user-id>
+Content-Type: application/json
+
+{
+  "notes": "Payment processed successfully"
+}
+```
+
+##### Reject Withdrawal
+```http
+POST /api/admin/withdrawals/:transactionId/reject
+User-Id: <admin-user-id>
+Content-Type: application/json
+
+{
+  "reason": "Insufficient funds"
+}
+```
+
+#### Admin Dashboard (Admin Only)
+
+##### Get Dashboard Data
+```http
+GET /api/admin/dashboard
+User-Id: <admin-user-id>
+```
+
+#### Transaction Management (Admin Only)
+
+##### Get All Transactions
 ```http
 GET /api/transaction/all?page=1&limit=20&type=deposit&status=completed
 User-Id: <admin-user-id>
 ```
 
-#### Get Transaction Statistics (Admin)
+##### Get Transaction Statistics
 ```http
 GET /api/transaction/stats?period=30
 User-Id: <admin-user-id>
 ```
 
-#### Update Transaction Status (Admin)
+##### Update Transaction Status
 ```http
 PATCH /api/transaction/:transactionId/status
 User-Id: <admin-user-id>
@@ -266,7 +379,7 @@ Content-Type: application/json
 }
 ```
 
-#### Refund Transaction (Admin)
+##### Refund Transaction
 ```http
 POST /api/transaction/:transactionId/refund
 User-Id: <admin-user-id>

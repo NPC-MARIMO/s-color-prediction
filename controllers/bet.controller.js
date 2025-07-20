@@ -54,8 +54,14 @@ exports.placeBetOnCurrentRound = async (req, res) => {
       await user.save({ session });
       
       // Update round statistics
+      const wasFirstBet = round.totalBets === 0;
       round.totalBets += 1;
       round.totalPool += amount;
+
+      // If this is the first bet, set endTime to 2 minutes from now
+      if (wasFirstBet) {
+        round.endTime = new Date(Date.now() + 2 * 60 * 1000);
+      }
       await round.save({ session });
       
       // Create bet
@@ -70,6 +76,13 @@ exports.placeBetOnCurrentRound = async (req, res) => {
       
       // Commit transaction
       await session.commitTransaction();
+
+      // Emit round update to all users via socket
+      if (global.socketEmitters && global.socketEmitters.emitRoundUpdate) {
+        // Fetch the latest round data (with updated stats)
+        const updatedRound = await GameRound.findById(round._id);
+        global.socketEmitters.emitRoundUpdate(updatedRound);
+      }
       
       res.json({ 
         message: "Bet placed", 
