@@ -167,7 +167,7 @@ exports.verifyDepositPayment = async (req, res) => {
         completedAt: new Date(),
       });
     }
-
+    
     console.log(`[verifyDepositPayment] Transaction created for userId: ${userId}, orderId: ${razorpay_order_id}`);
 
     return res.status(200).json({
