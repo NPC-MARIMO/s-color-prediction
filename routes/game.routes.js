@@ -3,7 +3,6 @@ const router = express.Router();
 const gameController = require("../controllers/game.controller");
 const betController = require("../controllers/bet.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
-const adminMiddleware = require("../middlewares/admin.middleware");
 
 // Public route to get current round
 router.get("/current-round", gameController.getCurrentRound);
@@ -21,7 +20,6 @@ router.use(authMiddleware);
 router.post("/place-bet", betController.placeBetOnCurrentRound);
 
 // (Optional) Admin/cron endpoints for round management
-router.use(adminMiddleware);
 router.post("/start-round", gameController.startNewRound); // For manual/cron round start
 router.post("/complete-round", gameController.completeCurrentRound); // For manual/cron round complete
 

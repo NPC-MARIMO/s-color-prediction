@@ -6,7 +6,6 @@ const adminMiddleware = require("../middlewares/admin.middleware");
 
 // All transaction routes require admin access
 router.use(authMiddleware);
-router.use(adminMiddleware);
 
 // Admin routes
 router.get("/all", transactionController.getAllTransactions);

@@ -33,6 +33,6 @@ const authMiddleware = async (req, res, next) => {
     console.error("Auth middleware error:", error);
     return res.status(500).json({ message: "Internal server error." });
   }
-};
+};  
 
 module.exports = authMiddleware;

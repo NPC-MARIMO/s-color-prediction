@@ -25,19 +25,10 @@ const transactionSchema = new mongoose.Schema(
       enum: ["pending", "completed", "failed", "cancelled"],
       default: "pending",
     },
-    cashfreeOrderId: {
+    razorpayOrderId: {
       type: String,
     },
-    cashfreePaymentId: {
-      type: String,
-    },
-    cashfreePaymentId: {
-      type: String,
-    },
-    cashfreeOrderId: {
-      type: String,
-    },
-    cashfreeRefundId: {
+    razorpayPaymentId: {
       type: String,
     },
     description: {
@@ -88,8 +79,8 @@ const transactionSchema = new mongoose.Schema(
 // Indexes for better query performance
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ type: 1, status: 1 });
-transactionSchema.index({ cashfreePaymentId: 1 });
-transactionSchema.index({ cashfreeOrderId: 1 });
+transactionSchema.index({ razorpayPaymentId: 1 });
+transactionSchema.index({ razorpayOrderId: 1 });
 
 const Transaction = mongoose.model("Transaction", transactionSchema);
 module.exports = Transaction;
