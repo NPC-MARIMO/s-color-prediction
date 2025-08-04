@@ -10,7 +10,10 @@ exports.placeBetOnCurrentRound = async (req, res) => {
     console.log(_id);
     
     const { chosenColor, amount } = req.body;
-    if (!chosenColor || !["red", "green", "blue"].includes(chosenColor)) {
+    if (
+      !chosenColor ||
+      !["red", "green", "blue", "purple", "yellow"].includes(chosenColor)
+    ) {
       return res.status(400).json({ message: "Invalid color choice" });
     }
     if (!amount || amount < 1) {
@@ -58,9 +61,8 @@ exports.placeBetOnCurrentRound = async (req, res) => {
       round.totalBets += 1;
       round.totalPool += amount;
 
-      // If this is the first bet, set endTime to 2 minutes from now
       if (wasFirstBet) {
-        round.endTime = new Date(Date.now() + 2 * 60 * 1000);
+        round.endTime = new Date(Date.now() + 60 * 1000);
       }
       await round.save({ session });
       

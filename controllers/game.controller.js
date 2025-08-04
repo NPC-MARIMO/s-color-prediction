@@ -84,7 +84,7 @@ exports.startNewRound = async (req, res) => {
     const roundId = `ROUND_${now.getTime()}_${Math.random().toString(36).substr(2, 6)}`;
     const gameDuration = 60; // seconds
     const bettingDuration = 30; // seconds
-    const colors = ["red", "green", "blue"];
+    const colors = ["red", "green", "blue", "purple", "yellow"];
     const round = new GameRound({
       roundId,
       startTime: now,

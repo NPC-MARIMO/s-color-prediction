@@ -15,7 +15,7 @@ const betSchema = new mongoose.Schema(
     chosenColor: {
       type: String,
       required: true,
-      enum: ["red", "green", "blue"],
+      enum: ["red", "green", "blue", "purple", "yellow"],
     },
     amount: {
       type: Number,

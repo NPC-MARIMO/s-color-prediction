@@ -3,12 +3,14 @@ const Transaction = require("../models/transaction.model");
 
 // Get wallet balance
 exports.getWalletBalance = async (req, res) => {
-  try {
+  try {    
     const { _id } = req.user;
     const user = await User.findById(_id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+    console.log((user));
+    
     return res.status(200).json({
       wallet: {
         balance: user.walletBalance,
