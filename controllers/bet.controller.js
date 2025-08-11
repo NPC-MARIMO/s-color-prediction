@@ -7,100 +7,137 @@ const User = require("../models/user.model");
 exports.placeBetOnCurrentRound = async (req, res) => {
   try {
     const { _id } = req.user;
-    console.log(_id);
-    
-    const { chosenColor, amount } = req.body;
-    if (
-      !chosenColor ||
-      !["red", "green", "blue", "purple", "yellow"].includes(chosenColor)
-    ) {
-      return res.status(400).json({ message: "Invalid color choice" });
-    }
+    const { chosenColor, chosenNumber, chosenSize, amount } = req.body;
+
+    console.log(`[placeBetOnCurrentRound] User: ${_id}, Body:`, req.body);
+
     if (!amount || amount < 1) {
+      console.log(`[placeBetOnCurrentRound] Invalid bet amount: ${amount}`);
       return res.status(400).json({ message: "Invalid bet amount" });
     }
-    // Find current round
-    const round = await GameRound.findOne({ status: "betting" }).sort({ startTime: -1 });
+
+    if (!chosenColor && !chosenNumber && !chosenSize) {
+      console.log(`[placeBetOnCurrentRound] No prediction type chosen`);
+      return res
+        .status(400)
+        .json({
+          message:
+            "You must choose at least one type of prediction (color, number, or size)",
+        });
+    }
+
+    // Validate each input if present
+    const validColors = ["red", "green", "violet"];
+    const validNumbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+    const validSizes = ["big", "small"];
+
+    if (chosenColor && !validColors.includes(chosenColor)) {
+      console.log(`[placeBetOnCurrentRound] Invalid color choice: ${chosenColor}`);
+      return res.status(400).json({ message: "Invalid color choice" });
+    }
+    if (chosenNumber && !validNumbers.includes(chosenNumber)) {
+      console.log(`[placeBetOnCurrentRound] Invalid number choice: ${chosenNumber}`);
+      return res.status(400).json({ message: "Invalid number choice" });
+    }
+    if (chosenSize && !validSizes.includes(chosenSize)) {
+      console.log(`[placeBetOnCurrentRound] Invalid size choice: ${chosenSize}`);
+      return res.status(400).json({ message: "Invalid size choice" });
+    }
+
+    // Find the current active game round
+    const round = await GameRound.findOne({ status: "betting" }).sort({
+      startTime: -1,
+    });
     if (!round) {
+      console.log(`[placeBetOnCurrentRound] No active round for betting`);
       return res.status(400).json({ message: "No active round for betting" });
     }
-    
-    // Verify the round still exists and is valid
-    if (!round._id) {
-      return res.status(400).json({ message: "Invalid round" });
-    }
+    console.log(`[placeBetOnCurrentRound] Found round: ${round._id}`);
+
     // Check if user already placed a bet for this round
-    const existingBet = await Bet.findOne({ userId: _id, gameRoundId: round._id });
+    const existingBet = await Bet.findOne({
+      userId: _id,
+      gameRoundId: round._id,
+    });
     if (existingBet) {
-      return res.status(400).json({ message: "You have already placed a bet for this round" });
+      console.log(`[placeBetOnCurrentRound] User ${_id} already placed a bet for round ${round._id}`);
+      return res
+        .status(400)
+        .json({ message: "You have already placed a bet for this round" });
     }
-    // Check user balance
+
+    // Check user wallet balance
     const user = await User.findById(_id);
     if (!user || user.walletBalance < amount) {
+      console.log(`[placeBetOnCurrentRound] Insufficient balance for user ${_id}. Wallet: ${user ? user.walletBalance : 'N/A'}, Bet: ${amount}`);
       return res.status(400).json({ message: "Insufficient balance" });
     }
-    
-    // Start a transaction to ensure data consistency
+
     const session = await mongoose.startSession();
     session.startTransaction();
-    
+
     try {
-      // Verify the round still exists before proceeding
       const roundExists = await GameRound.findById(round._id).session(session);
       if (!roundExists) {
+        console.log(`[placeBetOnCurrentRound] Round ${round._id} no longer exists`);
         await session.abortTransaction();
         return res.status(400).json({ message: "Round no longer exists" });
       }
-      
-      // Deduct amount from user balance
+
+      // Deduct amount from wallet
       user.walletBalance -= amount;
       await user.save({ session });
-      
-      // Update round statistics
+      console.log(`[placeBetOnCurrentRound] Deducted ${amount} from user ${_id}. New balance: ${user.walletBalance}`);
+
+      // Update round stats
       const wasFirstBet = round.totalBets === 0;
       round.totalBets += 1;
       round.totalPool += amount;
-
       if (wasFirstBet) {
-        round.endTime = new Date(Date.now() + 60 * 1000);
+        round.endTime = new Date(Date.now() + 30 * 1000); // Start 1-min countdown
+        console.log(`[placeBetOnCurrentRound] First bet for round ${round._id}. New endTime: ${round.endTime}`);
       }
       await round.save({ session });
-      
+      console.log(`[placeBetOnCurrentRound] Updated round stats. totalBets: ${round.totalBets}, totalPool: ${round.totalPool}`);
+
       // Create bet
       const bet = new Bet({
         userId: _id,
         gameRoundId: round._id,
         chosenColor,
+        chosenNumber,
+        chosenSize,
         amount,
         status: "confirmed",
       });
       await bet.save({ session });
-      
-      // Commit transaction
-      await session.commitTransaction();
+      console.log(`[placeBetOnCurrentRound] Created bet: ${bet._id}`);
 
-      // Emit round update to all users via socket
+      await session.commitTransaction();
+      session.endSession();
+      console.log(`[placeBetOnCurrentRound] Transaction committed for user ${_id}, bet ${bet._id}`);
+
+      // Emit updated round
       if (global.socketEmitters && global.socketEmitters.emitRoundUpdate) {
-        // Fetch the latest round data (with updated stats)
         const updatedRound = await GameRound.findById(round._id);
         global.socketEmitters.emitRoundUpdate(updatedRound);
+        console.log(`[placeBetOnCurrentRound] Emitted round update for round ${round._id}`);
       }
-      
-      res.json({ 
-        message: "Bet placed", 
+
+      return res.json({
+        message: "Bet placed successfully",
         bet,
         roundStats: {
           totalBets: round.totalBets,
           totalPool: round.totalPool,
-          totalWinners: round.totalWinners || 0
-        }
+          totalWinners: round.totalWinners || 0,
+        },
       });
-    } catch (error) {
-      // Rollback transaction on error
+    } catch (err) {
+      console.error(`[placeBetOnCurrentRound] Error in transaction:`, err);
       await session.abortTransaction();
-      throw error;
-    } finally {
       session.endSession();
+      throw err;
     }
   } catch (error) {
     console.error("Error placing bet:", error);

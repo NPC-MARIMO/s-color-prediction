@@ -37,6 +37,8 @@ module.exports = function setupGameSocketHandlers(io) {
     io.emit("round:result", {
       roundId: round.roundId,
       resultColor: round.resultColor,
+      resultNumber : round.resultNumber,
+      resultSize : round.resultSize,
       totalPool: round.totalPool,
       totalWinners: round.totalWinners,
     });

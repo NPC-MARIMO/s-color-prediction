@@ -10,6 +10,11 @@ function generateResult(colors) {
   return colors[randomIndex];
 }
 
+function generateRandomNumber() {
+  const randomNumber = Math.floor(Math.random() * 10)
+  return randomNumber
+}
+
 // Get the socket emitters
 let socketEmitters = null;
 function refreshSocketEmitters() {
@@ -37,8 +42,8 @@ exports.getRoundResult = async (req, res) => {
     const { roundId } = req.params;
     const round = await GameRound.findById(roundId);
     if (!round) return res.status(404).json({ message: "Round not found" });
-    
-    res.json({ resultColor: round.resultColor, status: round.status });
+
+    res.json({ resultColor: round.resultColor, resultNumber : round.resultNumber, resultSize : round.resultSize , status: round.status });
   } catch (error) {
     console.error("Error getting round result:", error);
     res.status(500).json({ message: "Failed to get round result" });
@@ -62,29 +67,35 @@ exports.getRoundHistory = async (req, res) => {
 // Admin/cron: Start a new round
 exports.startNewRound = async (req, res) => {
   try {
-    // Only delete rounds with 0 totalBets and status completed or cancelled
-    const roundsToDelete = await GameRound.find({ totalBets: 0, status: { $in: ["completed", "cancelled"] } });
-    const roundIdsToDelete = roundsToDelete.map(r => r._id);
-    // Delete orphaned bets first (bets that reference rounds we're about to delete)
+    const roundsToDelete = await GameRound.find({
+      totalBets: 0,
+      status: { $in: ["completed", "cancelled"] },
+    });
+    const roundIdsToDelete = roundsToDelete.map((r) => r._id);
     const orphanedBetsResult = await Bet.deleteMany({
-      gameRoundId: { $in: roundIdsToDelete }
+      gameRoundId: { $in: roundIdsToDelete },
     });
     console.log(`Deleted ${orphanedBetsResult.deletedCount} orphaned bets`);
-    // Now delete the rounds with 0 totalBets and completed/cancelled status
-    const deleteResult = await GameRound.deleteMany({ totalBets: 0, status: { $in: ["completed", "cancelled"] } });
+
+    const deleteResult = await GameRound.deleteMany({
+      totalBets: 0,
+      status: { $in: ["completed", "cancelled"] },
+    });
     console.log(`Deleted ${deleteResult.deletedCount} rounds with 0 totalBets`);
-    // End any previous round if still open
+
     await GameRound.updateMany(
       { status: { $in: ["betting", "spinning"] } },
       { $set: { status: "cancelled" } }
     );
-    
-    // Create new round
+
     const now = new Date();
-    const roundId = `ROUND_${now.getTime()}_${Math.random().toString(36).substr(2, 6)}`;
-    const gameDuration = 60; // seconds
-    const bettingDuration = 30; // seconds
-    const colors = ["red", "green", "blue", "purple", "yellow"];
+    const roundId = `ROUND_${now.getTime()}_${Math.random()
+      .toString(36)
+      .substr(2, 6)}`;
+    const gameDuration = 30;
+    const bettingDuration = 30;
+    const colors = ["red", "green", "violet"];
+
     const round = new GameRound({
       roundId,
       startTime: now,
@@ -94,14 +105,15 @@ exports.startNewRound = async (req, res) => {
       gameDuration,
       bettingDuration,
     });
+
     await round.save();
-    res.json({ 
-      message: "New round started", 
+    res.json({
+      message: "New round started",
       round,
       cleanup: {
         deletedRounds: deleteResult.deletedCount,
-        deletedOrphanedBets: orphanedBetsResult.deletedCount
-      }
+        deletedOrphanedBets: orphanedBetsResult.deletedCount,
+      },
     });
   } catch (error) {
     console.error("Error starting new round:", error);
@@ -109,89 +121,111 @@ exports.startNewRound = async (req, res) => {
   }
 };
 
-// Admin/cron: Complete the current round, spin the wheel, resolve bets
+// Admin/cron: Complete the current round
 exports.completeCurrentRound = async (req, res) => {
   try {
     refreshSocketEmitters();
-    const round = await GameRound.findOne({ status: { $in: ["betting", "spinning"] } }).sort({ startTime: -1 });
-    if (!round) return res.status(404).json({ message: "No active round to complete" });
+    const round = await GameRound.findOne({
+      status: { $in: ["betting", "spinning"] },
+    }).sort({ startTime: -1 });
+    if (!round)
+      return res.status(404).json({ message: "No active round to complete" });
+
     if (round.status === "betting") {
-      // Set to spinning phase and emit update
       round.status = "spinning";
       await round.save();
       refreshSocketEmitters();
-      console.log("🔄 Round status changed to spinning, emitting update...");
       if (socketEmitters && socketEmitters.emitRoundUpdate) {
         socketEmitters.emitRoundUpdate(round);
-        console.log("✅ Round update emitted successfully");
-      } else {
-        console.log("❌ Socket emitters not available");
       }
-      // Wait for spinning duration (30 seconds)
+
       setTimeout(async () => {
         try {
-          // Check if the round still exists before processing
           const roundStillExists = await GameRound.findById(round._id);
-          if (!roundStillExists) {
-            console.log("Round was deleted during processing, skipping completion");
-            return;
-          }
-          // Generate result
-          const resultColor = generateResult(round.colors);
-          round.resultColor = resultColor;
+          if (!roundStillExists) return;
+
+          // const resultNumber = generateRandomNumber();
+          const resultNumber = '3';
+
+          round.resultNumber = resultNumber;
+          round.resultSize = resultNumber < 5 ? "small" : "big";
+          round.resultColor = ['1', '3', '7', '9'].includes(resultNumber)
+            ? "green"
+            : ['2', '4', '6', '8'].includes(resultNumber)
+            ? "red"
+            : "violet";
           round.status = "completed";
           round.resultSeed = Math.random().toString();
-          // Get all bets for this round
+          console.log(round.resultSeed)
+
           const bets = await Bet.find({ gameRoundId: round._id });
           let totalPool = 0;
           let winners = [];
+
           for (const bet of bets) {
+            console.log(bet,'this is bet , hello', round,'this is round heyyy')
             totalPool += bet.amount;
-            if (bet.chosenColor === resultColor) {
+            let isWinner = false;
+            if (bet.chosenColor === round.resultColor) {
+              isWinner = true;
+            } 
+           if (String(bet.chosenNumber) === String(round.resultNumber)) {
+             isWinner = true;
+           }
+            if (bet.chosenSize === round.resultSize) {
+              isWinner = true;
+            }
+            if (isWinner) {
               bet.isWinner = true;
               winners.push(bet);
             }
             bet.status = "confirmed";
             await bet.save();
           }
+
           round.totalPool = totalPool;
-          round.totalBets = bets.length; // Update totalBets from actual bets
+          round.totalBets = bets.length;
           round.totalWinners = winners.length;
-          // Payout
-          const commission = round.commission || 0.05;
-          const prizePool = totalPool - totalPool * commission;
-          const prizePerWinner = winners.length > 0 ? prizePool / winners.length : 0;
+
+          // Winner gets 2x their bet amount (including their original bet)
           for (const bet of winners) {
-            bet.payoutAmount = prizePerWinner;
+            bet.payoutAmount = bet.amount * 2;
             await bet.save();
-            // Update user wallet
             const user = await User.findById(bet.userId);
             if (user) {
-              user.walletBalance += prizePerWinner;
+              user.walletBalance += bet.amount * 2;
               await user.save();
             }
           }
+
           await round.save();
           refreshSocketEmitters();
-          // Emit round result to all clients
           if (socketEmitters && socketEmitters.emitRoundResult) {
             socketEmitters.emitRoundResult(round);
           }
-          // Wait for completed duration (30 seconds) before starting new round
+
           setTimeout(async () => {
             try {
-              await exports.startNewRound({},{json:()=>{},status:()=>({json:()=>{}})});
+              await exports.startNewRound(
+                {},
+                { json: () => {}, status: () => ({ json: () => {} }) }
+              );
             } catch (startError) {
-              console.error("Error starting new round after completion phase:", startError);
+              console.error(
+                "Error starting new round after completion phase:",
+                startError
+              );
             }
-          }, 30000); // 30 seconds for completed phase
+          }, 1000);
         } catch (error) {
           console.error("Error in round completion timeout:", error);
         }
-      }, 30000); // 30 seconds for spinning phase
-      res.json({ message: "Round is spinning, result will be sent after 30 seconds." });
+      }, 1000);
+
+      res.json({
+        message: "Round is spinning, result will be sent after 30 seconds.",
+      });
     } else if (round.status === "spinning") {
-      // If already spinning, do nothing or handle as needed
       res.json({ message: "Round is already spinning." });
     } else {
       res.json({ message: "Round is not in a state to be completed." });

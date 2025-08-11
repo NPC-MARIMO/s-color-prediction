@@ -23,11 +23,19 @@ const gameRoundSchema = new mongoose.Schema(
     },
     colors: {
       type: [String],
-      default: ["red", "green", "blue", "purple", "yellow"],
+      default: ["red", "green", "violet"],
     },
     resultColor: {
       type: String,
       default: null,
+    },
+    resultNumber : {
+      type : String,
+      default: null
+    },
+    resultSize : {
+      type : String,
+      default : null
     },
     totalPool: {
       type: Number,
