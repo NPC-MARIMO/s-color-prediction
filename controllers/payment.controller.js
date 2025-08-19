@@ -21,6 +21,12 @@ exports.createDepositOrder = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Calculate bonus if applicable: 10% bonus for deposits >= 1000
+    let bonus = 0;
+    if (amount >= 1000) {
+      bonus = Math.floor(amount * 0.10);
+    }
+
     // Razorpay receipt must be <= 40 chars
     const rawReceipt = `order_${Date.now()}_${userId}`;
     const receipt = rawReceipt.slice(0, 40);
@@ -32,6 +38,7 @@ exports.createDepositOrder = async (req, res) => {
       notes: {
         userId: userId.toString(),
         userEmail: user.email,
+        bonus: bonus, // Add bonus info to notes for reference
       },
     };
     console.log(`[createDepositOrder] Creating Razorpay order with options:`, orderOptions);
@@ -47,13 +54,14 @@ exports.createDepositOrder = async (req, res) => {
       currency: "INR",
       status: "pending",
       razorpayOrderId: order.id,
-      description: `Deposit order created via Razorpay`,
+      description: `Deposit order created via Razorpay${bonus > 0 ? ` (Eligible for ₹${bonus} bonus)` : ""}`,
       netAmount: amount,
       balanceBefore: user.walletBalance,
       balanceAfter: user.walletBalance,
+      bonus: bonus > 0 ? bonus : undefined,
     });
 
-    console.log(`[createDepositOrder] Transaction created for userId: ${userId}, orderId: ${order.id}`);
+    console.log(`[createDepositOrder] Transaction created for userId: ${userId}, orderId: ${order.id}, bonus: ${bonus}`);
 
     // To show the payment page, you need to provide the frontend with all the details required to open Razorpay Checkout.
     // Typically, you should return: orderId, amount, currency, key, user info, etc.
@@ -74,6 +82,7 @@ exports.createDepositOrder = async (req, res) => {
         email: user.email,
         contact: user.phone || "",
       },
+      bonus: bonus, // Inform frontend about bonus eligibility
       // Optionally, you can send any other info needed for Razorpay Checkout
     });
   } catch (error) {

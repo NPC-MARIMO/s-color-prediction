@@ -144,8 +144,7 @@ exports.completeCurrentRound = async (req, res) => {
           const roundStillExists = await GameRound.findById(round._id);
           if (!roundStillExists) return;
 
-          // const resultNumber = generateRandomNumber();
-          const resultNumber = '3';
+          const resultNumber = generateRandomNumber();
 
           round.resultNumber = resultNumber;
           round.resultSize = resultNumber < 5 ? "small" : "big";
@@ -169,9 +168,9 @@ exports.completeCurrentRound = async (req, res) => {
             if (bet.chosenColor === round.resultColor) {
               isWinner = true;
             } 
-           if (String(bet.chosenNumber) === String(round.resultNumber)) {
-             isWinner = true;
-           }
+            if (String(bet.chosenNumber) === String(round.resultNumber)) {
+              isWinner = true;
+            }
             if (bet.chosenSize === round.resultSize) {
               isWinner = true;
             }
@@ -194,6 +193,9 @@ exports.completeCurrentRound = async (req, res) => {
             const user = await User.findById(bet.userId);
             if (user) {
               user.walletBalance += bet.amount * 2;
+              // Update totalAmountWon and totalGamesWon
+              user.totalAmountWon = (user.totalAmountWon || 0) + (bet.amount * 2);
+              user.totalGamesWon = (user.totalGamesWon || 0) + 1;
               await user.save();
             }
           }

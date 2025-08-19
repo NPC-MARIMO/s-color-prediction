@@ -86,8 +86,12 @@ exports.placeBetOnCurrentRound = async (req, res) => {
 
       // Deduct amount from wallet
       user.walletBalance -= amount;
+
+      // Increase totalGamesPlayed by one
+      user.totalGamesPlayed = (user.totalGamesPlayed || 0) + 1;
+
       await user.save({ session });
-      console.log(`[placeBetOnCurrentRound] Deducted ${amount} from user ${_id}. New balance: ${user.walletBalance}`);
+      console.log(`[placeBetOnCurrentRound] Deducted ${amount} from user ${_id}. New balance: ${user.walletBalance}. Total games played: ${user.totalGamesPlayed}`);
 
       // Update round stats
       const wasFirstBet = round.totalBets === 0;
